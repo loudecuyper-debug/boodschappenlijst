@@ -1,0 +1,13 @@
+{
+  "name": "Boodschappenlijst",
+  "short_name": "Boodschappen",
+  "lang": "nl-BE",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#EAF2EB",
+  "icons": [
+    { "src": "icon-1024.png?v=2", "sizes": "1024x1024", "type": "image/png", "purpose": "any" }
+  ]
+}
