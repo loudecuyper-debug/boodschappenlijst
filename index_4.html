@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Boodschappen">
+<meta name="theme-color" content="#EAF2EB">
+<title>Boodschappenlijst</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-1024.png?v=2">
+<link rel="icon" href="icon-1024.png?v=2">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FFFFFF; --band:#EAF2EB; --titel:#14301E; --tekst:#1B211C; --zacht:#4F5C52; --stil:#5F6A61;
+  --lijn:#E6E9E5; --veld:#F2F4F1; --primair:#1E5B3B; --offline:#8A4206;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--tekst);font-family:'Schibsted Grotesk',-apple-system,BlinkMacSystemFont,sans-serif;-webkit-text-size-adjust:100%}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.band{background:var(--band);padding:calc(env(safe-area-inset-top) + 16px) 20px 16px}
+.band h1{margin:0;font-size:32px;font-weight:800;letter-spacing:-0.03em;line-height:38px;color:var(--titel)}
+.sub{display:flex;align-items:center;gap:6px;font-size:15px;line-height:20px;color:var(--zacht);min-height:20px}
+.sub .off{display:flex;align-items:center;gap:4px;color:var(--offline)}
+.invoer{display:flex;align-items:center;gap:10px;margin-top:16px;height:48px;padding:0 14px;background:#FFFFFF;border-radius:10px}
+.invoer input{border:0;outline:0;background:transparent;font:inherit;font-size:17px;flex:1;min-width:0;color:var(--tekst)}
+.invoer input::placeholder{color:var(--stil)}
+.kop{display:flex;align-items:center;gap:8px;padding:28px 20px 8px;font-size:14px;font-weight:600;color:var(--zacht);line-height:20px}
+.dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.rij{display:flex;align-items:center;gap:12px;width:100%;padding:0 0 0 20px;text-align:left}
+.cirkel{width:24px;height:24px;border-radius:50%;border:2px solid;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.inhoud{display:flex;align-items:center;flex:1;min-width:0;min-height:52px;border-bottom:1px solid var(--lijn);padding-right:20px;gap:12px}
+.naam{font-size:17px;flex:1;min-width:0;overflow-wrap:anywhere}
+.qty{font-size:15px;color:var(--stil);font-variant-numeric:tabular-nums}
+.rij.af{color:var(--stil)}
+.rij.af .naam{text-decoration:line-through}
+.leeg{padding:48px 20px;font-size:15px;line-height:22px;color:var(--stil)}
+.balk{position:fixed;left:0;right:0;bottom:0;background:#FFFFFF;border-top:1px solid var(--lijn);padding:12px 20px calc(env(safe-area-inset-bottom) + 12px)}
+.balk button{width:100%;height:52px;border-radius:10px;background:var(--primair);color:#FFFFFF;font-size:17px;font-weight:600}
+.ruimte{height:24px}
+.ruimte.met-balk{height:calc(env(safe-area-inset-bottom) + 100px)}
+.hint{margin-top:8px;font-size:14px;line-height:20px;color:var(--zacht)}
+.hint:empty{display:none}
+.fout{margin:16px 20px;padding:12px 14px;border-radius:10px;background:#FCEDEB;color:#A8261B;font-size:15px;line-height:21px}
+</style>
+</head>
+<body>
+<header class="band">
+  <h1>Boodschappen</h1>
+  <div class="sub" id="sub"></div>
+  <form class="invoer" id="form" autocomplete="off">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1E5B3B" stroke-width="2.25" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    <input id="invoer" aria-label="Item toevoegen" placeholder="Wat moet er nog bij?" enterkeyhint="done" maxlength="60" autocapitalize="sentences" autocorrect="on">
+  </form>
+  <div class="hint" id="hint" aria-live="polite"></div>
+</header>
+<main id="lijst"></main>
+<div class="balk" id="balk" hidden><button id="klaar" type="button">Klaar met winkelen</button></div>
+
+<script>
+// ---------- Categorieën (design system, tab 4) ----------
+const CATS = [
+  ['groenten', 'Groenten & fruit', '#3F8A3A'], ['brood', 'Brood & bakkerij', '#A6741C'],
+  ['vlees', 'Vlees & vis', '#B5443A'], ['beleg', 'Charcuterie & kaas', '#C0602F'],
+  ['zuivel', 'Zuivel & eieren', '#3473B5'], ['klaar', 'Kant-en-klaar', '#9C5B8F'],
+  ['pasta', 'Pasta & wereld', '#9A7A10'], ['conserven', 'Conserven & sauzen', '#5B6FA8'],
+  ['ontbijt', 'Ontbijt & zoet', '#7A5236'], ['snacks', 'Koeken & snacks', '#C04A6E'],
+  ['bakken', 'Bakken & kruiden', '#6F7A2A'], ['dranken', 'Dranken', '#25848C'],
+  ['diepvries', 'Diepvries', '#2F86B8'], ['huishouden', 'Huishouden', '#7660AA'],
+  ['verzorging', 'Verzorging', '#A0529E'], ['overige', 'Overige', '#6E7A70']
+];
+const CAT = Object.fromEntries(CATS.map(([id, naam, kleur]) => [id, { id, naam, kleur }]));
+
+// ---------- Woordenlijst (Vlaams) ----------
+const WOORDEN = {
+  groenten: 'appel|peer|peren|banaan|sinaasappel|appelsien|mandarijn|clementine|citroen|limoen|druif|aardbei|framboos|frambozen|bosbes|blauwe bes|kers|kiwi|mango|ananas|meloen|watermeloen|perzik|nectarine|pruim|abrikoos|abrikozen|vijg|granaatappel|avocado|tomaat|kerstomaat|trostomaat|komkommer|paprika|courgette|aubergine|ui|uien|ajuin|rode ui|sjalot|look|knoflook|lookteen|prei|wortel|wortelen|aardappel|patat|krieltjes|zoete aardappel|broccoli|bloemkool|spruitjes|witloof|sla|ijsbergsla|kropsla|rucola|spinazie|veldsla|selder|selderij|venkel|champignon|paddenstoel|boon|boontjes|sperziebonen|prinsessenbonen|erwtjes|peultjes|maiskolf|rode biet|radijs|rode kool|witte kool|savooikool|boerenkool|pastinaak|knolselder|gember|peterselie|basilicum|munt|koriander|bieslook|dille|lente-ui|pompoen|asperge|groenten|fruit|soepgroenten|wokgroenten|pepers|chilipeper',
+  brood: 'brood|volkorenbrood|wit brood|bruin brood|meergranenbrood|pistolet|sandwich|boterkoek|croissant|chocoladebroodje|koffiekoek|stokbrood|baguette|ciabatta|focaccia|wrap|pitabrood|pita|toast|toastbrood|beschuit|piccolo|rozijnenbrood|krentenbrood|suikerbrood|naanbrood|hamburgerbroodje|hotdogbroodje|taart|cake|broodjes|pistolets|sandwiches',
+  vlees: 'gehakt|kipfilet|kip|kippenbouten|kippenbil|kippenvleugels|steak|biefstuk|varkenshaasje|varkensvlees|rundvlees|kalfsvlees|spek|spekblokjes|lardons|braadworst|chipolata|hamburger|ribbetjes|kotelet|gyros|kebab|stoofvlees|zalm|zalmfilet|kabeljauw|vis|visfilet|scampi|garnaal|garnalen|mosselen|tonijnsteak|kalkoen|lamsvlees|eend|cordon bleu|schnitzel|blinde vinken|gehaktballen|vleesbrood|worsten',
+  beleg: 'hesp|ham|gekookte hesp|rauwe hesp|salami|kipwit|kalkoenfilet|prepare|filet americain|pate|boulogne|kaas|gouda|jonge kaas|oude kaas|brie|camembert|mozzarella|burrata|parmezaan|feta|geitenkaas|emmentaler|cheddar|gruyere|raclettekaas|kaasblokjes|geraspte kaas|gemalen kaas|chorizo|prosciutto|pancetta|leverworst|charcuterie|beleg',
+  zuivel: 'melk|halfvolle melk|volle melk|magere melk|havermelk|sojamelk|amandelmelk|rijstmelk|karnemelk|chocomelk|yoghurt|griekse yoghurt|drinkyoghurt|platte kaas|kwark|skyr|room|slagroom|kookroom|zure room|creme fraiche|boter|margarine|ei|eieren|pudding|mascarpone|ricotta|cottage cheese|vla|zuivel',
+  klaar: 'soep|verse soep|pizza|lasagne|verse pasta|tortellini|ravioli|gnocchi|hummus|quiche|maaltijdsalade|slaatje|vol-au-vent|sushi|tzatziki|dip|kant-en-klaar|spaghettisaus|bolognese|balletjes in tomatensaus|kippensoep|tomatensoep',
+  pasta: 'pasta|spaghetti|penne|fusilli|farfalle|tagliatelle|macaroni|lasagnebladen|rijst|basmatirijst|risottorijst|zilvervliesrijst|couscous|bulgur|quinoa|noedels|mie|rijstnoedels|tortilla|tortillawraps|taco|tacoschelpen|kokosmelk|currypasta|sojasaus|woksaus|sushirijst|nori|linzen|wereldkeuken',
+  conserven: 'tomatenpuree|passata|tomatenblokjes|gepelde tomaten|tomatensaus|pastasaus|pesto|kikkererwten|witte bonen|bruine bonen|kidneybonen|bonen in tomatensaus|mais|tonijn|sardines|olijven|augurken|zilveruitjes|mayonaise|ketchup|mosterd|curry|currysaus|bbq-saus|andalouse|cocktailsaus|samuraisaus|olijfolie|olie|zonnebloemolie|frituurolie|azijn|balsamico|appelmoes|ansjovis|kappertjes|tapenade|champignons in blik|saus|conserven',
+  ontbijt: 'choco|chocopasta|nutella|confituur|jam|honing|siroop|speculoospasta|pindakaas|hagelslag|muisjes|muesli|granola|havermout|cornflakes|ontbijtgranen|cruesli|rijstwafels|ontbijt',
+  snacks: 'koekjes|koeken|chocolade|chocoladereep|reep|chips|nootjes|noten|cashewnoten|pindas|borrelnootjes|snoep|gummies|drop|popcorn|crackers|toastjes|speculoos|wafels|mueslireep|snacks|apero',
+  bakken: 'bloem|zelfrijzende bloem|suiker|bruine suiker|kristalsuiker|poedersuiker|bakpoeder|gist|vanillesuiker|zout|peper|paprikapoeder|kerriepoeder|komijn|oregano|tijm|rozemarijn|laurier|nootmuskaat|kaneel|bouillon|bouillonblokjes|maizena|cacaopoeder|chocoladedruppels|rozijnen|amandelen|kruiden|specerijen',
+  dranken: 'water|bruiswater|plat water|spuitwater|cola|cola zero|fanta|sprite|ice tea|limonade|fruitsap|sap|sinaasappelsap|appelsap|multivitaminesap|smoothie|bier|pils|wijn|rode wijn|witte wijn|rose|cava|prosecco|champagne|koffie|koffiebonen|koffiepads|koffiecapsules|thee|kruidenthee|tonic|energiedrank|frisdrank|drank',
+  diepvries: 'ijs|ijsjes|roomijs|diepvriesgroenten|frietjes|friet|frieten|kroketten|diepvriespizza|vissticks|ijsblokjes|diepvriesfruit|loempia|bitterballen|diepvries',
+  huishouden: 'wc-papier|wcpapier|toiletpapier|keukenrol|keukenpapier|afwasmiddel|vaatwastabletten|vaatwaszout|glansspoelmiddel|wasmiddel|wasverzachter|vuilniszakken|vuilzakken|pmd-zakken|allesreiniger|javel|schoonmaakmiddel|sponsjes|aluminiumfolie|zilverpapier|plasticfolie|diepvrieszakjes|bakpapier|kaarsen|batterijen|servetten|zakdoeken|ontkalker|huishouden',
+  verzorging: 'tandpasta|tandenborstel|shampoo|conditioner|douchegel|zeep|handzeep|deodorant|deo|scheermesjes|scheerschuim|maandverband|tampons|dagcreme|bodylotion|zonnecreme|wattenstaafjes|watten|flosdraad|mondwater|pleisters|paracetamol|ibuprofen|lenzenvloeistof|haargel|verzorging'
+};
+
+// ---------- Normaliseren ----------
+const UITZONDERINGEN = { eieren: 'ei', uien: 'ui', peren: 'peer', kinderen: 'kind' };
+const HOUD_S = new Set(['chips', 'kaas', 'ananas', 'ijs', 'saus', 'jus', 'hummus', 'couscous', 'mais', 'muis', 'kers', 'spruitjes']);
+function enkelvoud(w) {
+  if (UITZONDERINGEN[w]) return UITZONDERINGEN[w];
+  if (w.endsWith("'s")) return w.slice(0, -2);
+  if (w.length >= 5 && w.endsWith('en') && !/(een|ien)$/.test(w)) {
+    let s = w.slice(0, -2);
+    if (/([bcdfghjklmnpqrstvwxz])\1$/.test(s)) s = s.slice(0, -1);
+    else if (/[^aeiou][aou][^aeiouyj]$/.test(s) && !/[aeiou]{2}[^aeiou]$/.test(s)) s = s.slice(0, -1) + s.slice(-2, -1) + s.slice(-1);
+    if (s.endsWith('v')) s = s.slice(0, -1) + 'f';
+    else if (s.endsWith('z')) s = s.slice(0, -1) + 's';
+    return s;
+  }
+  if (w.length >= 4 && w.endsWith('s') && !HOUD_S.has(w) && (!/[aeious]s$/.test(w) || w.endsWith('jes'))) return w.slice(0, -1);
+  return w;
+}
+function sleutelVan(naam) {
+  const t = String(naam).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[‘’]/g, "'").replace(/-/g, '').replace(/[^a-z0-9' ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return t.split(' ').filter(Boolean).map(enkelvoud).join(' ').replace(/'/g, '').slice(0, 60);
+}
+const LEXICON = new Map();
+for (const [cat, lijst] of Object.entries(WOORDEN)) {
+  for (const woord of lijst.split('|')) {
+    const k = sleutelVan(woord);
+    LEXICON.set(k, cat);
+    LEXICON.set(k.replace(/ /g, ''), cat);
+  }
+}
+function categorieVan(sleutel) {
+  if (!sleutel) return 'overige';
+  if (LEXICON.has(sleutel)) return LEXICON.get(sleutel);
+  const samen = sleutel.replace(/ /g, '');
+  if (LEXICON.has(samen)) return LEXICON.get(samen);
+  const woorden = sleutel.split(' ');
+  const laatste = woorden[woorden.length - 1];
+  // verkleinwoorden: kerstomaatje -> kerstomaat, worteltje -> wortel, erwtje -> erwt
+  const vormen = [laatste];
+  if (laatste.endsWith('je')) for (const s of ['je', 'tje', 'pje', 'etje']) if (laatste.endsWith(s)) vormen.push(laatste.slice(0, -s.length));
+  for (const w of vormen) if (w.length >= 2 && LEXICON.has(w)) return LEXICON.get(w);
+  let best = null; // samenstellingen: het langste woord uit de lijst waarop het laatste woord eindigt
+  for (const [k] of LEXICON) {
+    if (k.length < 3 || k.includes(' ')) continue;
+    if (vormen.some((v) => v.length >= 3 && v.endsWith(k)) && (!best || k.length > best.length)) best = k;
+  }
+  if (best) return LEXICON.get(best);
+  for (const w of woorden) if (LEXICON.has(w)) return LEXICON.get(w);
+  return 'overige';
+}
+
+// ---------- Invoer herkennen: "2 melk", "500g gehakt", "melk x2", "aardappelen 2 kg" ----------
+const EENHEDEN = { x: null, '×': null, st: null, stuk: null, stuks: null, g: 'g', gr: 'g', gram: 'g', kg: 'kg', kilo: 'kg', ml: 'ml', cl: 'cl', l: 'l', liter: 'l' };
+function parseInvoer(tekst) {
+  let t = String(tekst).replace(/\s+/g, ' ').trim();
+  const N = '(\\d+(?:[.,]\\d+)?)';
+  const U = '(x|×|st|stuks|stuk|g|gr|gram|kg|kilo|ml|cl|l|liter)';
+  let q = null, e = null, m;
+  if ((m = t.match(new RegExp('^' + N + '\\s*' + U + '?\\s+(.+)$', 'i')))) { q = m[1]; e = m[2]; t = m[3]; }
+  else if ((m = t.match(new RegExp('^(.+?)\\s+(?:x\\s*' + N + '|' + N + '\\s*x)$', 'i')))) { t = m[1]; q = m[2] || m[3]; }
+  else if ((m = t.match(new RegExp('^(.+?)\\s+' + N + '\\s*(g|gr|gram|kg|kilo|ml|cl|l|liter)$', 'i')))) { t = m[1]; q = m[2]; e = m[3]; }
+  let n = q == null ? null : parseFloat(String(q).replace(',', '.'));
+  let eenheid = e ? EENHEDEN[e.toLowerCase()] : null;
+  if (eenheid === 'cl') { n = n * 10; eenheid = 'ml'; }
+  if (n != null && (!isFinite(n) || n <= 0 || n > 9999)) { n = null; eenheid = null; }
+  if (n == null) eenheid = null;
+  else n = Math.round(n * 100) / 100;
+  return { naam: t, hoeveelheid: n, eenheid };
+}
+
+// ---------- State ----------
+const S = {
+  items: [],
+  volgorde: CATS.map((c) => c[0]),
+  sync: { offline: !navigator.onLine, wachtend: 0, sinds: 0 },
+  geladen: false,
+  fout: ''
+};
+let FB = null;
+
+// ---------- Helpers ----------
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const netjes = (naam) => { const t = naam.replace(/\s+/g, ' ').trim().slice(0, 60); return t.charAt(0).toLocaleUpperCase('nl-BE') + t.slice(1); };
+const qtyTekst = (it) => it.hoeveelheid == null ? '' : String(it.hoeveelheid).replace('.', ',') + (it.eenheid && it.eenheid !== 'st' ? ' ' + it.eenheid : '');
+const vergelijk = (a, b) => a.naam.localeCompare(b.naam, 'nl-BE', { sensitivity: 'base' });
+
+// ---------- Render ----------
+function renderSub() {
+  const open = S.items.filter((i) => !i.afgevinkt).length;
+  const af = S.items.length - open;
+  let tekst = af > 0 ? `${open} te gaan` : `${open} ${open === 1 ? 'item' : 'items'}`;
+  if (!S.geladen) tekst = 'Laden…';
+  const lang = S.sync.wachtend > 0 && Date.now() - S.sync.sinds > 2500;
+  let status = '';
+  if (S.sync.offline) status = 'offline' + (S.sync.wachtend > 0 ? `, ${S.sync.wachtend} wachten` : '');
+  else if (lang) status = `${S.sync.wachtend} ${S.sync.wachtend === 1 ? 'wijziging wacht' : 'wijzigingen wachten'}`;
+  $('sub').innerHTML = esc(tekst) + (status
+    ? '<span aria-hidden="true">·</span><span class="off"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A4206" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M9.5 6.2A6 6 0 0 1 17.7 10H18a4 4 0 0 1 2.3 7.3M16 18H6a4 4 0 0 1-.6-8"/></svg>' + esc(status) + '</span>'
+    : '');
+}
+
+function rijHtml(it, af) {
+  const kleur = (CAT[it.categorie] || CAT.overige).kleur;
+  const cirkel = af
+    ? `<span class="cirkel" style="background:${kleur};border-color:${kleur}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>`
+    : `<span class="cirkel" style="border-color:${kleur}"></span>`;
+  return `<button class="rij${af ? ' af' : ''}" data-id="${esc(it.id)}" aria-pressed="${af}">${cirkel}<span class="inhoud"><span class="naam">${esc(it.naam)}</span><span class="qty">${esc(qtyTekst(it))}</span></span></button>`;
+}
+
+function render() {
+  renderSub();
+  const open = S.items.filter((i) => !i.afgevinkt);
+  const mandje = S.items.filter((i) => i.afgevinkt).sort((a, b) => (b.afgevinktOp || 0) - (a.afgevinktOp || 0));
+  let html = S.fout ? `<div class="fout">${esc(S.fout)}</div>` : '';
+  if (S.geladen && S.items.length === 0) html += '<div class="leeg">De lijst is leeg. Typ hierboven wat er nog bij moet.</div>';
+  const volgorde = [...S.volgorde.filter((c) => c !== 'overige'), 'overige'];
+  for (const cid of volgorde) {
+    const groep = open.filter((i) => (CAT[i.categorie] ? i.categorie : 'overige') === cid).sort(vergelijk);
+    if (!groep.length) continue;
+    html += `<div class="kop"><span class="dot" style="background:${CAT[cid].kleur}"></span>${esc(CAT[cid].naam)}</div>`;
+    html += groep.map((it) => rijHtml(it, false)).join('');
+  }
+  if (mandje.length) {
+    html += `<div class="kop">In mandje · ${mandje.length}</div>`;
+    html += mandje.map((it) => rijHtml(it, true)).join('');
+  }
+  html += `<div class="ruimte${mandje.length ? ' met-balk' : ''}"></div>`;
+  $('lijst').innerHTML = html;
+  $('balk').hidden = mandje.length === 0;
+}
+
+// ---------- Acties ----------
+let hintTimer = 0;
+function toonHint(tekst) {
+  $('hint').textContent = tekst;
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(() => { $('hint').textContent = ''; }, 3000);
+}
+function voegToe(tekst) {
+  if (!FB) return false;
+  const p = parseInvoer(tekst);
+  const naam = netjes(p.naam);
+  if (!naam) return false;
+  const sleutel = sleutelVan(naam);
+  if (!sleutel) return false;
+  const bestaand = S.items.find((i) => i.sleutel === sleutel && !i.afgevinkt) || S.items.find((i) => i.sleutel === sleutel);
+  if (bestaand) {
+    let hoeveelheid = p.hoeveelheid, eenheid = p.eenheid, melding;
+    const oud = bestaand.eenheid || null;
+    if (bestaand.afgevinkt) {
+      melding = `${bestaand.naam} staat terug op de lijst`;
+    } else if (hoeveelheid == null && oud) {
+      toonHint(`${bestaand.naam} staat er al op (${qtyTekst(bestaand)})`);
+      return true;
+    } else if ((eenheid || null) === oud) {
+      hoeveelheid = Math.round(((bestaand.hoeveelheid ?? 1) + (hoeveelheid ?? 1)) * 100) / 100;
+      eenheid = oud;
+      melding = `${bestaand.naam} stond er al op, nu ${qtyTekst({ hoeveelheid, eenheid })}`;
+    } else {
+      melding = `${bestaand.naam} aangepast naar ${qtyTekst({ hoeveelheid, eenheid })}`;
+    }
+    FB.update(bestaand.id, { hoeveelheid, eenheid, afgevinkt: false, afgevinktOp: null });
+    toonHint(melding);
+    return true;
+  }
+  FB.add({ naam, sleutel, hoeveelheid: p.hoeveelheid, eenheid: p.eenheid, categorie: categorieVan(sleutel), afgevinkt: false, afgevinktOp: null });
+  return true;
+}
+function wissel(id) {
+  const it = S.items.find((i) => i.id === id);
+  if (it && FB) FB.setChecked(id, !it.afgevinkt);
+}
+function klaarMetWinkelen() {
+  const ids = S.items.filter((i) => i.afgevinkt).map((i) => i.id);
+  if (ids.length && FB) FB.removeMany(ids);
+}
+
+// ---------- Firebase-koppeling ----------
+function onSnapshotData(snap) {
+  S.items = snap.docs;
+  S.geladen = true;
+  const wachtend = snap.docs.filter((d) => d._pending).length || (snap.pending ? 1 : 0);
+  if (wachtend && !S.sync.wachtend) S.sync.sinds = Date.now();
+  S.sync.wachtend = wachtend;
+  S.sync.offline = !navigator.onLine;
+  render();
+}
+window.__fbReady = function (fb) {
+  FB = fb;
+  FB.listen(onSnapshotData, (e) => { S.fout = 'Kan de lijst niet laden: ' + (e && e.message ? e.message : e); render(); });
+};
+window.__fbFout = function (e) {
+  S.fout = 'Firebase kon niet laden. Controleer je verbinding en open de app opnieuw.';
+  render();
+};
+
+// ---------- Events ----------
+$('form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (voegToe($('invoer').value)) $('invoer').value = '';
+  $('invoer').focus();
+});
+$('lijst').addEventListener('click', (e) => {
+  const rij = e.target.closest('[data-id]');
+  if (rij) wissel(rij.dataset.id);
+});
+$('klaar').addEventListener('click', klaarMetWinkelen);
+addEventListener('online', () => { S.sync.offline = false; render(); });
+addEventListener('offline', () => { S.sync.offline = true; render(); });
+setInterval(() => { if (S.sync.wachtend) renderSub(); }, 1000);
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+render();
+</script>
+
+<script type="module">
+// Firebase laadt apart als module, zodat de app-logica hierboven los te testen is.
+const V = '12.19.0';
+try {
+  const { initializeApp } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`);
+  const F = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`);
+  const app = initializeApp({
+    apiKey: 'AIzaSyDdb1HZEOJuMDwqR4Qj7EceJavwymgHQ1U',
+    authDomain: 'boodschappen-e9a2b.firebaseapp.com',
+    projectId: 'boodschappen-e9a2b',
+    storageBucket: 'boodschappen-e9a2b.firebasestorage.app',
+    messagingSenderId: '888363747841',
+    appId: '1:888363747841:web:62d7a85603309858600e00'
+  });
+  let db;
+  try {
+    db = F.initializeFirestore(app, { localCache: F.persistentLocalCache({ tabManager: F.persistentSingleTabManager() }) });
+  } catch (e) {
+    db = F.initializeFirestore(app, { localCache: F.memoryLocalCache() });
+  }
+  const items = F.collection(db, 'items');
+  const ms = (t) => (t && t.toMillis ? t.toMillis() : 0);
+  window.__fbReady({
+    listen(cb, err) {
+      return F.onSnapshot(items, { includeMetadataChanges: true }, (snap) => {
+        cb({
+          docs: snap.docs.map((d) => {
+            const x = d.data({ serverTimestamps: 'estimate' });
+            return { ...x, id: d.id, op: ms(x.op), afgevinktOp: ms(x.afgevinktOp), _pending: d.metadata.hasPendingWrites };
+          }),
+          fromCache: snap.metadata.fromCache,
+          pending: snap.metadata.hasPendingWrites
+        });
+      }, err);
+    },
+    add(data) { return F.setDoc(F.doc(items), { ...data, op: F.serverTimestamp() }).catch(() => {}); },
+    update(id, data) { return F.updateDoc(F.doc(db, 'items', id), data).catch(() => {}); },
+    setChecked(id, val) { return F.updateDoc(F.doc(db, 'items', id), { afgevinkt: val, afgevinktOp: val ? F.serverTimestamp() : null }).catch(() => {}); },
+    removeMany(ids) { const b = F.writeBatch(db); ids.forEach((id) => b.delete(F.doc(db, 'items', id))); return b.commit().catch(() => {}); }
+  });
+} catch (e) {
+  window.__fbFout(e);
+}
+</script>
+</body>
+</html>

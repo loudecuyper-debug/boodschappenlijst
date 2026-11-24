@@ -1,6 +1,6 @@
 // Service worker: laat de app opstarten zonder bereik.
 // Bij elke nieuwe versie van de app: verhoog VERSIE, anders blijft iOS de oude tonen.
-const VERSIE = 'boodschappen-v2';
+const VERSIE = 'boodschappen-v3';
 const FIREBASE = '12.19.0';
 const EIGEN = ['./', './index.html', './manifest.webmanifest', './icon-1024.png?v=2'];
 const EXTERN = [
