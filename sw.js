@@ -1,8 +1,9 @@
 // Service worker: laat de app opstarten zonder bereik.
 // Bij elke nieuwe versie van de app: verhoog VERSIE, anders blijft iOS de oude tonen.
-const VERSIE = 'boodschappen-v3';
+const VERSIE = 'boodschappen-v4';
 const FIREBASE = '12.19.0';
-const EIGEN = ['./', './index.html', './manifest.webmanifest', './icon-1024.png?v=2'];
+const EIGEN = ['./', './index.html', './manifest.webmanifest', './icon-1024.png?v=2',
+  './fonts/schibsted-400.woff2', './fonts/schibsted-600.woff2', './fonts/schibsted-700.woff2', './fonts/schibsted-800.woff2'];
 const EXTERN = [
   `https://www.gstatic.com/firebasejs/${FIREBASE}/firebase-app.js`,
   `https://www.gstatic.com/firebasejs/${FIREBASE}/firebase-firestore.js`
