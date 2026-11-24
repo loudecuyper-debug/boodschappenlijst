@@ -22,13 +22,15 @@
   --lijn:#E6E9E5; --veld:#F2F4F1; --primair:#1E5B3B; --offline:#8A4206;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;background:var(--bg);color:var(--tekst);font-family:'Schibsted Grotesk',-apple-system,BlinkMacSystemFont,sans-serif;-webkit-text-size-adjust:100%}
+html,body{margin:0;background:var(--bg);color:var(--tekst);font-family:'Schibsted Grotesk',-apple-system,BlinkMacSystemFont,sans-serif;-webkit-text-size-adjust:100%;touch-action:manipulation}
+button,input{touch-action:manipulation}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
 .band{background:var(--band);padding:calc(env(safe-area-inset-top) + 16px) 20px 16px}
 .band h1{margin:0;font-size:32px;font-weight:800;letter-spacing:-0.03em;line-height:38px;color:var(--titel)}
 .sub{display:flex;align-items:center;gap:6px;font-size:15px;line-height:20px;color:var(--zacht);min-height:20px}
 .sub .off{display:flex;align-items:center;gap:4px;color:var(--offline)}
 .invoer{display:flex;align-items:center;gap:10px;margin-top:16px;height:48px;padding:0 14px;background:#FFFFFF;border-radius:10px}
+.plusknop{width:44px;height:44px;margin:0 -12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border-radius:10px}
 .invoer input{border:0;outline:0;background:transparent;font:inherit;font-size:17px;flex:1;min-width:0;color:var(--tekst)}
 .invoer input::placeholder{color:var(--stil)}
 .kop{display:flex;align-items:center;gap:8px;padding:28px 20px 8px;font-size:14px;font-weight:600;color:var(--zacht);line-height:20px}
@@ -97,7 +99,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
   </div>
   <div class="sub" id="sub"></div>
   <form class="invoer" id="form" autocomplete="off">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1E5B3B" stroke-width="2.25" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    <button class="plusknop" id="plus" type="submit" aria-label="Toevoegen"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1E5B3B" stroke-width="2.25" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
     <input id="invoer" aria-label="Item toevoegen" placeholder="Wat moet er nog bij?" enterkeyhint="done" maxlength="60" autocapitalize="sentences" autocorrect="on">
   </form>
   <div class="sugs" id="sugs"></div>
@@ -548,6 +550,7 @@ $('form').addEventListener('submit', (e) => {
   $('invoer').focus();
 });
 $('invoer').addEventListener('input', renderSugs);
+$('plus').addEventListener('pointerdown', (e) => e.preventDefault());
 $('sugs').addEventListener('pointerdown', (e) => { if (e.target.closest('[data-sug]')) e.preventDefault(); });
 $('sugs').addEventListener('click', (e) => {
   const b = e.target.closest('[data-sug]');
