@@ -41,6 +41,10 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .naam{font-size:17px;flex:1;min-width:0;overflow-wrap:anywhere}
 .qty{font-size:15px;color:var(--stil);font-variant-numeric:tabular-nums}
 .rij.af{color:var(--stil)}
+.rij,.kop{background:#FFFFFF}
+.rij{transition:color .2s}
+.cirkel{position:relative}
+.ring{position:absolute;inset:-2px;border-radius:50%;border:2px solid;pointer-events:none}
 .rij.af .naam{text-decoration:line-through}
 .leeg{padding:48px 20px;font-size:15px;line-height:22px;color:var(--stil)}
 .balk{position:fixed;left:0;right:0;bottom:0;background:#FFFFFF;border-top:1px solid var(--lijn);padding:12px 20px calc(env(safe-area-inset-bottom) + 12px)}
@@ -60,7 +64,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .toast button{margin-left:auto;height:44px;padding:0 10px;color:#BFE3C6;font-weight:600;font-size:15px;white-space:nowrap}
 .overlay{position:fixed;inset:0;background:rgba(20,30,22,.45);display:flex;flex-direction:column;justify-content:flex-end;z-index:10}
 .overlay[hidden]{display:none}
-.sheet{background:#FFFFFF;border-radius:16px 16px 0 0;padding:8px 20px calc(env(safe-area-inset-bottom) + 20px);max-height:92vh;overflow-y:auto;display:flex;flex-direction:column;gap:24px}
+.sheet{box-shadow:0 160px 0 0 #FFFFFF;background:#FFFFFF;border-radius:16px 16px 0 0;padding:8px 20px calc(env(safe-area-inset-bottom) + 20px);max-height:92vh;overflow-y:auto;display:flex;flex-direction:column;gap:24px}
 .greep{width:36px;height:5px;border-radius:3px;background:#D3D8D2;align-self:center;flex-shrink:0}
 .sheetkop{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:-8px}
 .sheetkop h2{margin:0;font-size:24px;font-weight:700;letter-spacing:-0.02em;display:flex;align-items:center;gap:10px;min-width:0;overflow-wrap:anywhere}
@@ -223,6 +227,7 @@ const S = {
   catalogus: {},
   weg: new Set(),
   detail: null,
+  wacht: new Map(),
   fout: ''
 };
 let FB = null;
@@ -239,6 +244,144 @@ function categorieVoor(sleutel) {
   return c && c.handmatig && CAT[c.categorie] ? c.categorie : categorieVan(sleutel);
 }
 const vergelijk = (a, b) => a.naam.localeCompare(b.naam, 'nl-BE', { sensitivity: 'base' });
+
+// ---------- Animaties ----------
+const STIJLEN = {
+  rustig: { duur: 260, ease: 'cubic-bezier(.2,.8,.2,1)', wacht: 200, vink: 220, sprong: false, stapUit: 20 }
+};
+const PAGINA_EASE = 'cubic-bezier(.32,.72,0,1)';
+let animModus = 'rustig';
+const minderBeweging = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+function stijl() {
+  if (animModus === 'uit' || typeof document.body.animate !== 'function' || minderBeweging()) return null;
+  return STIJLEN[animModus] || null;
+}
+const anim = (el, frames, opts) => (el && typeof el.animate === 'function' ? el.animate(frames, opts) : null);
+const VINK = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>';
+let getoond = false;
+const sleutelEl = (el) => (el.dataset && el.dataset.id ? 'i' + el.dataset.id
+  : el.classList && el.classList.contains('kop') ? 'k' + el.textContent.replace(/\s·\s\d+$/, '') : null);
+function meet() {
+  const m = new Map();
+  for (const el of $('lijst').children) { const k = sleutelEl(el); if (k) m.set(k, el.getBoundingClientRect().top); }
+  return m;
+}
+function speelFlip(voor, st) {
+  const hoog = innerHeight;
+  for (const el of $('lijst').children) {
+    const k = sleutelEl(el);
+    if (!k) continue;
+    const top = el.getBoundingClientRect().top;
+    if (voor.has(k)) {
+      const oud = voor.get(k), d = oud - top;
+      if (Math.abs(d) < 1 || (oud > hoog && top > hoog)) continue;
+      anim(el, [{ transform: `translateY(${d}px)` }, { transform: 'none' }], { duration: st.duur, easing: st.ease });
+    } else if (el.dataset.id) {
+      const it = S.items.find((i) => i.id === el.dataset.id);
+      const kleur = (CAT[it && it.categorie] || CAT.overige).kleur;
+      anim(el, [{ opacity: 0, transform: st.sprong ? 'translateY(-12px) scale(.96)' : 'translateY(-6px)' }, { opacity: 1, transform: 'none' }], { duration: st.duur, easing: st.ease });
+      anim(el, [{ backgroundColor: kleur + '2E' }, { backgroundColor: '#FFFFFF' }], { duration: 1400, easing: 'ease-in' });
+    } else {
+      anim(el, [{ opacity: 0 }, { opacity: 1 }], { duration: st.duur, easing: 'ease-out' });
+    }
+  }
+}
+let balkAnim = null;
+function zetBalk(toon, st) {
+  const b = $('balk');
+  const zichtbaar = !b.hidden && !b.dataset.weg;
+  if (toon === zichtbaar) return;
+  if (balkAnim) { balkAnim.cancel(); balkAnim = null; }
+  delete b.dataset.weg;
+  if (toon) {
+    b.hidden = false;
+    if (st) balkAnim = anim(b, [{ transform: 'translateY(100%)' }, { transform: 'none' }], { duration: 320, easing: PAGINA_EASE });
+    return;
+  }
+  if (!st) { b.hidden = true; return; }
+  b.dataset.weg = '1';
+  const a = balkAnim = anim(b, [{ transform: 'none' }, { transform: 'translateY(100%)' }], { duration: 240, easing: 'ease-in', fill: 'forwards' });
+  a.onfinish = () => { if (balkAnim === a) { b.hidden = true; delete b.dataset.weg; a.cancel(); balkAnim = null; } };
+}
+let toastAnim = null;
+function toonToast(tekst) {
+  const t = $('toast');
+  $('toastTekst').textContent = tekst;
+  if (toastAnim) { toastAnim.cancel(); toastAnim = null; }
+  const was = t.hidden;
+  t.hidden = false;
+  const st = stijl();
+  if (was && st) toastAnim = anim(t, [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }], { duration: st.sprong ? 400 : 240, easing: st.sprong ? st.ease : PAGINA_EASE });
+}
+function verbergToast() {
+  const t = $('toast');
+  if (toastAnim) { toastAnim.cancel(); toastAnim = null; }
+  const st = stijl();
+  if (!st || t.hidden) { t.hidden = true; return; }
+  const a = toastAnim = anim(t, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(16px)' }], { duration: 180, easing: 'ease-in', fill: 'forwards' });
+  a.onfinish = () => { if (toastAnim === a) { t.hidden = true; a.cancel(); toastAnim = null; } };
+}
+function toonVinkje(rij, it, doel, st) {
+  const kleur = (CAT[it.categorie] || CAT.overige).kleur;
+  const c = rij.querySelector('.cirkel');
+  rij.classList.toggle('af', doel);
+  if (!doel) {
+    c.style.background = '';
+    c.innerHTML = '';
+    anim(c, [{ transform: 'scale(.8)' }, { transform: 'none' }], { duration: 220, easing: st.ease });
+    return;
+  }
+  c.style.background = kleur;
+  c.innerHTML = VINK;
+  anim(c, st.sprong
+    ? [{ transform: 'scale(.5)' }, { transform: 'scale(1.22)', offset: 0.55 }, { transform: 'none' }]
+    : [{ transform: 'scale(.75)' }, { transform: 'none' }], { duration: st.vink, easing: st.sprong ? 'ease-out' : st.ease });
+  anim(c.querySelector('path'), [{ strokeDasharray: '22', strokeDashoffset: '22' }, { strokeDasharray: '22', strokeDashoffset: '0' }],
+    { duration: Math.round(st.vink * 0.8), delay: 40, easing: 'ease-out', fill: 'backwards' });
+  if (st.sprong) {
+    const ring = document.createElement('span');
+    ring.className = 'ring';
+    ring.style.borderColor = kleur;
+    c.appendChild(ring);
+    anim(ring, [{ transform: 'scale(1)', opacity: 0.7 }, { transform: 'scale(2.1)', opacity: 0 }], { duration: st.wacht, easing: 'ease-out', fill: 'forwards' });
+  }
+}
+function verdwijn(ids, daarna) {
+  const st = stijl();
+  if (!st) return daarna();
+  const els = [...$('lijst').children];
+  const weg = [];
+  let kop = null, rijen = [];
+  const sluitKop = () => { if (kop && rijen.length && rijen.every((r) => ids.has(r.dataset.id))) weg.push(kop); };
+  for (const el of els) {
+    if (el.classList.contains('kop')) { sluitKop(); kop = el; rijen = []; }
+    else if (el.dataset.id) { rijen.push(el); if (ids.has(el.dataset.id)) weg.push(el); }
+  }
+  sluitKop();
+  if (!weg.length) return daarna();
+  weg.sort((a, b) => els.indexOf(a) - els.indexOf(b));
+  let langst = 0;
+  weg.forEach((el, n) => {
+    const cs = getComputedStyle(el);
+    const van = { height: el.offsetHeight + 'px', paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom };
+    const tot = { height: '0px', paddingTop: '0px', paddingBottom: '0px' };
+    const d = Math.min(n, 8) * st.stapUit;
+    const duur = st.sprong ? 420 : 240;
+    el.style.overflow = 'hidden';
+    el.style.pointerEvents = 'none';
+    anim(el, st.sprong
+      ? [{ ...van, opacity: 1, transform: 'none' }, { ...van, opacity: 0, transform: 'translateX(48px)', offset: 0.55 }, { ...tot, opacity: 0, transform: 'translateX(48px)' }]
+      : [{ ...van, opacity: 1 }, { ...tot, opacity: 0 }], { duration: duur, delay: d, easing: 'ease-in-out', fill: 'forwards' });
+    langst = Math.max(langst, duur + d);
+  });
+  setTimeout(daarna, langst);
+}
+function schuif(el, doe) {
+  const st = stijl();
+  const voor = st ? el.getBoundingClientRect().top : 0;
+  doe();
+  if (st) anim(el, [{ transform: `translateY(${voor - el.getBoundingClientRect().top}px)` }, { transform: 'none' }], { duration: 180, easing: 'ease-out' });
+}
 
 // ---------- Render ----------
 function renderSub() {
@@ -258,13 +401,16 @@ function renderSub() {
 
 function rijHtml(it, af) {
   const kleur = (CAT[it.categorie] || CAT.overige).kleur;
-  const cirkel = af
-    ? `<span class="cirkel" style="background:${kleur};border-color:${kleur}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>`
+  const toon = S.wacht.has(it.id) ? S.wacht.get(it.id) : af;
+  const cirkel = toon
+    ? `<span class="cirkel" style="background:${kleur};border-color:${kleur}">${VINK}</span>`
     : `<span class="cirkel" style="border-color:${kleur}"></span>`;
-  return `<button class="rij${af ? ' af' : ''}" data-id="${esc(it.id)}" aria-pressed="${af}">${cirkel}<span class="inhoud"><span class="naam">${esc(it.naam)}</span><span class="qty">${esc(qtyTekst(it))}</span></span></button>`;
+  return `<button class="rij${toon ? ' af' : ''}" data-id="${esc(it.id)}" aria-pressed="${toon}">${cirkel}<span class="inhoud"><span class="naam">${esc(it.naam)}</span><span class="qty">${esc(qtyTekst(it))}</span></span></button>`;
 }
 
 function render() {
+  const st = stijl();
+  const voor = st && getoond ? meet() : null;
   renderSub();
   const zicht = lijstItems();
   const open = zicht.filter((i) => !i.afgevinkt);
@@ -284,12 +430,15 @@ function render() {
   }
   html += `<div class="ruimte${mandje.length ? ' met-balk' : ''}"></div>`;
   $('lijst').innerHTML = html;
-  $('balk').hidden = mandje.length === 0;
+  if (S.geladen) getoond = true;
+  if (voor) speelFlip(voor, st);
+  zetBalk(mandje.length > 0, st);
 }
 
 // ---------- Acties ----------
 let hintTimer = 0;
 function toonHint(tekst) {
+  if (!$('hint').textContent) { const st = stijl(); if (st) anim($('hint'), [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], { duration: 200, easing: 'ease-out' }); }
   $('hint').textContent = tekst;
   clearTimeout(hintTimer);
   hintTimer = setTimeout(() => { $('hint').textContent = ''; }, 3000);
@@ -327,23 +476,29 @@ function voegToe(tekst) {
 }
 function wissel(id) {
   const it = S.items.find((i) => i.id === id);
-  if (it && FB) FB.setChecked(id, !it.afgevinkt);
+  if (!it || !FB || S.wacht.has(id)) return;
+  const doel = !it.afgevinkt;
+  const st = stijl();
+  const rij = st && [...$('lijst').querySelectorAll('[data-id]')].find((r) => r.dataset.id === id);
+  if (!rij) { FB.setChecked(id, doel); return; }
+  S.wacht.set(id, doel);
+  toonVinkje(rij, it, doel, st);
+  setTimeout(() => { S.wacht.delete(id); FB.setChecked(id, doel); }, st.wacht);
 }
 let uitstel = null;
 function verwijderLater(lijst, tekst, metCatalogus) {
   if (uitstel) voerUit();
   lijst.forEach((i) => S.weg.add(i.id));
   uitstel = { lijst, metCatalogus, timer: setTimeout(voerUit, 5000) };
-  $('toastTekst').textContent = tekst;
-  $('toast').hidden = false;
-  render();
+  toonToast(tekst);
+  verdwijn(new Set(lijst.map((i) => i.id)), render);
 }
 function voerUit() {
   if (!uitstel) return;
   const { lijst, metCatalogus, timer } = uitstel;
   uitstel = null;
   clearTimeout(timer);
-  $('toast').hidden = true;
+  verbergToast();
   if (FB) FB.finish(lijst.map((i) => ({ id: i.id, sleutel: i.sleutel, naam: i.naam, categorie: i.categorie })), metCatalogus);
 }
 function ongedaan() {
@@ -351,7 +506,7 @@ function ongedaan() {
   clearTimeout(uitstel.timer);
   uitstel.lijst.forEach((i) => S.weg.delete(i.id));
   uitstel = null;
-  $('toast').hidden = true;
+  verbergToast();
   render();
 }
 function klaarMetWinkelen() {
@@ -389,7 +544,12 @@ function renderSugs() {
   // eerst woorden die met de getypte letters beginnen, daarna woorden waarin een deel ermee begint
   for (const w of WOORDLIJST) { if (uit.length >= 5) break; if (plat(w).startsWith(q)) probeer(w); }
   for (const w of WOORDLIJST) { if (uit.length >= 5) break; probeer(w); }
+  const oudSug = new Set([...$('sugs').children].map((b) => b.dataset.sug));
   $('sugs').innerHTML = uit.map((n) => `<button type="button" data-sug="${esc(n)}"><span class="dot" style="background:${CAT[categorieVoor(sleutelVan(n))].kleur}"></span>${esc(n)}</button>`).join('');
+  const st = stijl();
+  if (st) [...$('sugs').children].forEach((b, n) => {
+    if (!oudSug.has(b.dataset.sug)) anim(b, [{ opacity: 0, transform: st.sprong ? 'translateY(6px) scale(.9)' : 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: st.sprong ? 320 : 180, delay: st.sprong ? n * 30 : 0, easing: st.ease, fill: 'backwards' });
+  });
 }
 
 // ---------- Item aanpassen (lang drukken) ----------
@@ -397,14 +557,28 @@ const EENHEID_KNOPPEN = ['geen', 'st', 'g', 'kg', 'ml', 'l'];
 const STAP = { st: 1, g: 50, kg: 0.5, ml: 50, l: 0.5 };
 const STANDAARD = { st: 1, g: 500, kg: 1, ml: 500, l: 1 };
 const eenheidVan = (it) => (it.hoeveelheid == null ? 'geen' : it.eenheid || 'st');
+const sheetAnim = [];
+const stopAnims = (l) => { l.forEach((a) => a && a.cancel()); l.length = 0; };
 function openDetail(id) {
   S.detail = id;
   renderDetail();
+  stopAnims(sheetAnim);
+  $('overlay').style.pointerEvents = '';
   $('overlay').hidden = false;
+  const st = stijl();
+  if (st) sheetAnim.push(
+    anim($('overlay'), [{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'ease-out' }),
+    anim($('sheet'), [{ transform: 'translateY(100%)' }, { transform: 'none' }], { duration: st.sprong ? 520 : 340, easing: st.sprong ? 'cubic-bezier(.34,1.2,.64,1)' : PAGINA_EASE }));
 }
 function sluitDetail() {
   S.detail = null;
-  $('overlay').hidden = true;
+  stopAnims(sheetAnim);
+  const st = stijl();
+  if (!st || $('overlay').hidden) { $('overlay').hidden = true; return; }
+  $('overlay').style.pointerEvents = 'none';
+  const s = anim($('sheet'), [{ transform: 'none' }, { transform: 'translateY(100%)' }], { duration: 240, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' });
+  sheetAnim.push(anim($('overlay'), [{ opacity: 1 }, { opacity: 0 }], { duration: 240, easing: 'ease-in', fill: 'forwards' }), s);
+  s.onfinish = () => { if (sheetAnim.includes(s)) { $('overlay').hidden = true; $('overlay').style.pointerEvents = ''; stopAnims(sheetAnim); } };
 }
 function renderDetail() {
   const it = lijstItems().find((i) => i.id === S.detail);
@@ -462,13 +636,21 @@ function detailActie(knop) {
 
 // ---------- Instellingen: volgorde van de afdelingen ----------
 const volgordeLijst = () => S.volgorde.filter((c) => c !== 'overige' && CAT[c]);
+let instAnim = null;
 function openInst() {
   renderInst();
+  if (instAnim) { instAnim.cancel(); instAnim = null; }
   $('inst').hidden = false;
   $('inst').scrollTop = 0;
+  const st = stijl();
+  if (st) instAnim = anim($('inst'), [{ transform: 'translateX(100%)' }, { transform: 'none' }], { duration: 380, easing: PAGINA_EASE });
 }
 function sluitInst() {
-  $('inst').hidden = true;
+  if (instAnim) { instAnim.cancel(); instAnim = null; }
+  const st = stijl();
+  if (!st || $('inst').hidden) { $('inst').hidden = true; return; }
+  const a = instAnim = anim($('inst'), [{ transform: 'none' }, { transform: 'translateX(100%)' }], { duration: 300, easing: 'cubic-bezier(.4,0,.6,1)', fill: 'forwards' });
+  a.onfinish = () => { if (instAnim === a) { $('inst').hidden = true; a.cancel(); instAnim = null; } };
 }
 function renderInst() {
   const terug = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1E5B3B" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>';
@@ -494,8 +676,8 @@ function beweegSleep(e) {
   const rijen = [...$('sleeplijst').children];
   const i = rijen.indexOf(sleep.rij);
   const dy = e.clientY - sleep.y;
-  if (dy > sleep.h / 2 && i < rijen.length - 1) { rijen[i + 1].after(sleep.rij); sleep.y += sleep.h; }
-  else if (dy < -sleep.h / 2 && i > 0) { rijen[i - 1].before(sleep.rij); sleep.y -= sleep.h; }
+  if (dy > sleep.h / 2 && i < rijen.length - 1) { schuif(rijen[i + 1], () => rijen[i + 1].after(sleep.rij)); sleep.y += sleep.h; }
+  else if (dy < -sleep.h / 2 && i > 0) { schuif(rijen[i - 1], () => rijen[i - 1].before(sleep.rij)); sleep.y -= sleep.h; }
   sleep.rij.style.transform = `translateY(${e.clientY - sleep.y}px)`;
 }
 function stopSleep() {
